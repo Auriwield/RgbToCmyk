@@ -40,7 +40,6 @@
     <None Include="vertexShader.sh">
       <Filter>Source Files\shaders</Filter>
     </None>
-    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sprite.h">

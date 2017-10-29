@@ -22,8 +22,8 @@
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
-//#define STB_IMAGE_WRITE_IMPLEMENTATION
-//#include "stb_image_write.h";
+#include "Sprite.h"
+#include <vector>;
 
 // Function prototypes
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
@@ -84,80 +84,11 @@ int main(int argc, char **argv)
 	std::string tempFilePath = get_exe_path().append("\\temp.png");
 	prepare_file(filePath, tempFilePath, &aspect_ratio);
 
-	GLfloat* left = get_rect_coords(-0.95f, 0.5f, 0.9f, aspect_ratio);
-	GLfloat* right = get_rect_coords(0.0f, 0.5f, 0.9f, aspect_ratio);
+	GLfloat* leftCoords = get_rect_coords(-0.95f, 0.5f, 0.9f, aspect_ratio);
+	GLfloat* rightCoords = get_rect_coords(0.0f, 0.5f, 0.9f, aspect_ratio);
 
-	// Set up vertex data (and buffer(s)) and attribute pointers
-	GLfloat verticesLeft[] = {
-		// Positions          // Texture Coords
-		left[2],  left[1], 0.0f,    1.0f, 1.0f,  // Top Right
-		left[2],  left[3], 0.0f,    1.0f, 0.0f,  // Bottom Right
-		left[0],  left[3], 0.0f,    0.0f, 0.0f,  // Bottom Left
-		left[0],  left[1], 0.0f,    0.0f, 1.0f  // Top Left 
-	};
-
-	GLfloat verticesRight[] = {
-		right[2],  right[1], 0.0f,    1.0f, 1.0f,  // Top Right
-		right[2],  right[3], 0.0f,    1.0f, 0.0f,  // Bottom Right
-		right[0],  right[3], 0.0f,    0.0f, 0.0f,  // Bottom Left
-		right[0],  right[1], 0.0f,    0.0f, 1.0f   // Top Left 
-	};
-
-	GLuint indices[] = {
-		0, 1, 3, // First Triangle
-		1, 2, 3  // Second Triangle
-	};
-
-	GLuint VBOLeft, VAOLeft, EBOLeft;
-	glGenVertexArrays(1, &VAOLeft);
-	glGenBuffers(1, &VBOLeft);
-	glGenBuffers(1, &EBOLeft);
-
-	glBindVertexArray(VAOLeft);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBOLeft);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(verticesLeft), verticesLeft, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOLeft);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	// Position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
-	glEnableVertexAttribArray(0);
-	// TexCoord attribute
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
-	glEnableVertexAttribArray(1);
-
-	glBindVertexArray(0); // Unbind VAO
-
-	GLuint VBORight, VAORight, EBORight;
-	glGenVertexArrays(1, &VAORight);
-	glGenBuffers(1, &VBORight);
-	glGenBuffers(1, &EBORight);
-
-	glBindVertexArray(VAORight);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBORight);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(verticesRight), verticesRight, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBORight);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	// Position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
-	glEnableVertexAttribArray(0);
-	// TexCoord attribute
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
-	glEnableVertexAttribArray(1);
-
-	glBindVertexArray(0); // Unbind VAO
-
-						  // Load and create a texture 
-	GLuint textureLeft;
-	GLuint textureRight;
-	glGenTextures(1, &textureLeft);
-	glGenTextures(1, &textureRight);
-	glBindTexture(GL_TEXTURE_2D, textureLeft);
+	Sprite* leftSprite = new Sprite(leftCoords, new TextureImage(filePath));
+	Sprite* rightSprite = new Sprite(rightCoords, new TextureImage(tempFilePath));
 
 	// Set the texture wrapping parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// Set texture wrapping to GL_REPEAT (usually basic wrapping method)
@@ -165,23 +96,13 @@ int main(int argc, char **argv)
 	// Set texture filtering parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	// Load image, create texture and generate mipmaps
 
-	int width, height;
+	leftSprite->init();
+	rightSprite->init();
 
-	unsigned char* image = SOIL_load_image(filePath.c_str(), &width, &height, 0, SOIL_LOAD_RGB);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	SOIL_free_image_data(image);
-	glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture when done, so we won't accidentily mess up our texture.
-
-	glBindTexture(GL_TEXTURE_2D, textureRight);
-
-	image = SOIL_load_image(tempFilePath.c_str(), &width, &height, 0, SOIL_LOAD_RGB);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-	glGenerateMipmap(GL_TEXTURE_2D);
-	SOIL_free_image_data(image);
-	glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture when done, so we won't accidentily mess up our texture.
+	std::vector<Sprite*> sprites(2);
+	sprites.push_back(leftSprite);
+	sprites.push_back(rightSprite);
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -204,25 +125,20 @@ int main(int argc, char **argv)
 		GLint transformLoc = glGetUniformLocation(ourShader.Program, "transform");
 		glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
 
-		// Draw container
-		glBindTexture(GL_TEXTURE_2D, textureLeft);
-		glBindVertexArray(VAOLeft);
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		/*for (auto sprite : sprites) // access by reference to avoid copying
+		{
+			sprite->draw();
+		}*/
 
-		glBindTexture(GL_TEXTURE_2D, textureRight);
-		glBindVertexArray(VAORight);
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		leftSprite->draw();
+		rightSprite->draw();
 
 		glBindVertexArray(0);
 
 		// Swap the screen buffers
 		glfwSwapBuffers(window);
 	}
-	// Properly de-allocate all resources once they've outlived their purpose
-	glDeleteVertexArrays(1, &VAOLeft);
-	glDeleteBuffers(1, &VBOLeft);
-	glDeleteBuffers(1, &EBOLeft);
-	// Terminate GLFW, clearing any resources allocated by GLFW.
+
 	glfwTerminate();
 
 	return 0;

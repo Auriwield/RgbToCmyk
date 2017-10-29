@@ -14,7 +14,7 @@ class Sprite
 private:
 	GLfloat *vertices;
 	GLfloat *texture_coords;
-	GLfloat *indices;
+	GLuint *indices;
 	TextureImage* texture;
 	GLuint VBO, VAO, EBO;
 	GLfloat * buildVxArray() {
@@ -36,7 +36,7 @@ public:
 	{
 		texture = _texture;
 		vertices = _vertices;
-		indices = new GLfloat[ix_size]{ 0, 1, 3, 1, 2, 3 };
+		indices = new GLuint[ix_size]{ 0, 1, 3, 1, 2, 3 };
 		texture_coords = new GLfloat[tx_size]{ 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
 	}
 
@@ -50,7 +50,7 @@ public:
 		texture_coords = _texture_coords;
 	}
 
-	void set_indices(GLfloat *_indices)
+	void set_indices(GLuint *_indices)
 	{
 		indices = _indices;
 	}

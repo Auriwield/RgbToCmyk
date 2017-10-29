@@ -44,6 +44,24 @@ public:
 		glBindTexture(GL_TEXTURE_2D, texture);
 	}
 
+	TextureImage * count_diff(TextureImage * left, TextureImage * right) {
+		int w = std::min(left->width, right->width);
+		int h = std::min(left->height, right->height);
+
+		unsigned char* diffData = new unsigned char[w*h*SOIL_LOAD_RGB];
+
+		for (int y = 0; y < h; y++)
+		{
+			for (int x = 0; x < w; x++)
+			{
+				int index = (y * w + x) * SOIL_LOAD_RGB;
+				diffData[index] = fabsf(left->data[index] - right->data[index]);
+			}
+		}
+
+		return nullptr;
+	}
+
 	~TextureImage() 
 	{
 		SOIL_free_image_data(data);

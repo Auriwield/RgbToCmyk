@@ -1,7 +1,7 @@
 #include <iostream>
 #include <algorithm> 
 #include <cstdlib>
-
+#include <math.h>
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -87,8 +87,12 @@ int main(int argc, char **argv)
 	GLfloat* leftCoords = get_rect_coords(-0.95f, 0.5f, 0.9f, aspect_ratio);
 	GLfloat* rightCoords = get_rect_coords(0.0f, 0.5f, 0.9f, aspect_ratio);
 
-	Sprite* leftSprite = new Sprite(leftCoords, new TextureImage(filePath));
-	Sprite* rightSprite = new Sprite(rightCoords, new TextureImage(tempFilePath));
+	TextureImage* leftText = new TextureImage(filePath);
+	TextureImage* rightText = new TextureImage(tempFilePath);
+	//TextureImage* diff = 
+
+	Sprite* leftSprite = new Sprite(leftCoords, leftText);
+	Sprite* rightSprite = new Sprite(rightCoords, rightText);
 
 	// Set the texture wrapping parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// Set texture wrapping to GL_REPEAT (usually basic wrapping method)
@@ -193,6 +197,17 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 	}
 }
 
+void percentize(float * x) 
+{
+	*x = roundf(*x * 100.0f) / 100.0f;
+}
+
+void fix_value_if_need(float * x) 
+{
+	if (*x > 255.0f) *x = 255.0f;
+	if (*x < 0.0f) *x = 0.0f;
+}
+
 void prepare_file(std::string inPath, std::string outPath, float * aspect_ratio)
 {
 	int width, height;
@@ -204,19 +219,41 @@ void prepare_file(std::string inPath, std::string outPath, float * aspect_ratio)
 		{
 			int index = (width * y + x) * SOIL_LOAD_RGB;
 			float r = data[index + 0] / 255.0f;
-			float b = data[index + 1] / 255.0f;
-			float g = data[index + 2] / 255.0f;
+			float g = data[index + 1] / 255.0f;
+			float b = data[index + 2] / 255.0f;
 
-			float black = std::max(std::min(r, g), b);
+			float black = std::max(std::max(r, g), b);
+			percentize(&black);
+
+			if (black < 0.01) 
+			{
+				data[index + 0] = 0;
+				data[index + 1] = 0;
+				data[index + 2] = 0;
+				continue;
+			}
+
 			float n_black = 1.0f - black;
 
 			float cyan = (black - r) / black;
 			float magenta = (black - g) / black;
 			float yellow = (black - b) / black;
 
-			data[index + 0] = (unsigned char)(255.0f * (1 - cyan) * black);
-			data[index + 1] = (unsigned char)(255.0f * (1 - magenta) * black);
-			data[index + 2] = (unsigned char)(255.0f * (1 - yellow) * black);
+			percentize(&cyan);
+			percentize(&magenta);
+			percentize(&yellow);
+
+			float rc = roundf(255.0f * (1 - cyan) * black);
+			float gc = roundf(255.0f * (1 - magenta) * black);
+			float bc = roundf(255.0f * (1 - yellow) * black);
+
+			fix_value_if_need(&rc);
+			fix_value_if_need(&gc);
+			fix_value_if_need(&bc);
+
+			data[index + 0] = (unsigned char) rc;
+			data[index + 1] = (unsigned char) gc;
+			data[index + 2] = (unsigned char) bc;
 		}
 	}
 

@@ -33,6 +33,7 @@ std::string show_open_file_dialog();
 void prepare_file(std::string inPath, std::string outPath, float * aspect_ratio);
 std::string get_exe_path();
 GLfloat * get_rect_coords(GLfloat left, GLfloat top, float width, float aspect_ratio);
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
 // Window dimensions
 const GLuint WIDTH = 600, HEIGHT = 600;
@@ -44,6 +45,7 @@ float ty = 0;
 bool is_space_pressed;
 bool is_mouse_left_pressed;
 float dx, dy;
+float scale = 1.0f;
 
 // The MAIN function, from here we start the application and run the game loop
 int main(int argc, char **argv)
@@ -64,7 +66,7 @@ int main(int argc, char **argv)
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetCursorPosCallback(window, cursor_position_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
-
+	glfwSetScrollCallback(window, scroll_callback);
 	// Set this to true so GLEW knows to use a modern approach to retrieving function pointers and extensions
 	glewExperimental = GL_TRUE;
 	// Initialize GLEW to setup the OpenGL Function pointers
@@ -84,29 +86,48 @@ int main(int argc, char **argv)
 	std::string tempFilePath = get_exe_path().append("\\temp.png");
 	prepare_file(filePath, tempFilePath, &aspect_ratio);
 
+	float h = 0.9f / aspect_ratio;
+
+	//GLfloat* leftCoords = get_rect_coords(-0.5, 0.5f, 1.0f, aspect_ratio);
 	GLfloat* leftCoords = get_rect_coords(-0.95f, 0.5f, 0.9f, aspect_ratio);
 	GLfloat* rightCoords = get_rect_coords(0.0f, 0.5f, 0.9f, aspect_ratio);
 
+	GLfloat* histLeftCoords = get_rect_coords(-0.95f, 0.45f - h , 0.9f, aspect_ratio);
+	GLfloat* histRightCoords = get_rect_coords(0.0f, 0.45f - h, 0.9f, aspect_ratio);
+
+	GLfloat* diffCoords = get_rect_coords(-0.45f, 0.4f - (h*2), 0.9f, aspect_ratio);
+
 	TextureImage* leftText = new TextureImage(filePath);
 	TextureImage* rightText = new TextureImage(tempFilePath);
-	//TextureImage* diff = 
 
-	Sprite* leftSprite = new Sprite(leftCoords, leftText);
-	Sprite* rightSprite = new Sprite(rightCoords, rightText);
+	TextureImage* leftHistText = leftText->histogram();
+	TextureImage* rightHistText = rightText->histogram();
+
+	TextureImage* diff = leftText->count_diff(rightText);
+
+	float mse = leftText->mse(rightText);
+	printf("MSE = %.4f\n", mse);
+
+	int spritesCount = 5;
+	Sprite ** sprites = new Sprite*[spritesCount];
+
+	sprites[0] = new Sprite(leftCoords, leftText);;
+	sprites[1] = new Sprite(rightCoords, rightText);
+	sprites[2] = new Sprite(histLeftCoords, leftHistText);;
+	sprites[3] = new Sprite(histRightCoords, rightHistText);
+	sprites[4] = new Sprite(diffCoords, diff);
 
 	// Set the texture wrapping parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// Set texture wrapping to GL_REPEAT (usually basic wrapping method)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	// Set texture filtering parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	leftSprite->init();
-	rightSprite->init();
-
-	std::vector<Sprite*> sprites(2);
-	sprites.push_back(leftSprite);
-	sprites.push_back(rightSprite);
+	for (int i = 0; i < spritesCount; i++)
+	{
+		sprites[i]->init();
+	}
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -122,8 +143,8 @@ int main(int argc, char **argv)
 		ourShader.Use();
 
 		glm::mat4 transform;
+		transform = glm::scale(transform, glm::vec3(scale, scale, 0.0f));
 		transform = glm::translate(transform, glm::vec3(tx, ty, 0.0f));
-		//transform = glm::rotate(transform, (GLfloat)glfwGetTime() * 50.0f, glm::vec3(0.0f, 0.0f, 1.0f));
 
 		// Get matrix's uniform location and set matrix
 		GLint transformLoc = glGetUniformLocation(ourShader.Program, "transform");
@@ -134,8 +155,10 @@ int main(int argc, char **argv)
 			sprite->draw();
 		}*/
 
-		leftSprite->draw();
-		rightSprite->draw();
+		for (int i = 0; i < spritesCount; i++)
+		{
+			sprites[i]->draw();
+		}
 
 		glBindVertexArray(0);
 
@@ -185,8 +208,8 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 	y = y1;
 
 	if (is_mouse_left_pressed) {
-		tx += dx;
-		ty -= dy;
+		tx += dx * 1.0f / scale;
+		ty -= dy * 1.0f / scale;
 	}
 }
 
@@ -197,15 +220,50 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 	}
 }
 
-void percentize(float * x) 
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-	*x = roundf(*x * 100.0f) / 100.0f;
+	float factor = 1.0f + yoffset / 20;
+
+	scale *= factor;
+	//tx *= factor;
+	//ty *= factor;
+
+	//tx -= (x+tx) * factor - (x+tx);
+	//ty += (y-ty) * factor - (y-ty);
 }
 
-void fix_value_if_need(float * x) 
+void rgb_to_cmyk(int r, int g, int b, int* c, int* m, int* y, int* k, int scale = 100) 
 {
-	if (*x > 255.0f) *x = 255.0f;
-	if (*x < 0.0f) *x = 0.0f;
+	float cf, mf, yf, kf;
+	cf = 1 - r / 255.0f;
+	mf = 1 - g / 255.0f;
+	yf = 1 - b / 255.0f;
+	kf = std::min(std::min(cf, mf), yf);
+
+	cf = (cf - kf) / (1 - kf);
+	mf = (mf - kf) / (1 - kf);
+	yf = (yf - kf) / (1 - kf);
+
+	*c = cf * scale;
+	*m = mf * scale;
+	*y = yf * scale;
+	*k = kf * scale;
+}		
+
+void cmyk_to_rgb(int c, int m, int y, int k, int* r, int* g, int* b, int scale = 100)
+{
+	float cf = c * 1.0f / scale;
+	float mf = m * 1.0f / scale;
+	float yf = y * 1.0f / scale;
+	float kf = k * 1.0f / scale;
+
+	cf = cf * (1 - kf) + kf;
+	mf = mf * (1 - kf) + kf;
+	yf = yf * (1 - kf) + kf;
+
+	*r = (1 - cf) * 255.0f;
+	*g = (1 - mf) * 255.0f;
+	*b = (1 - yf) * 255.0f;
 }
 
 void prepare_file(std::string inPath, std::string outPath, float * aspect_ratio)
@@ -213,47 +271,23 @@ void prepare_file(std::string inPath, std::string outPath, float * aspect_ratio)
 	int width, height;
 	unsigned char *data = SOIL_load_image(inPath.c_str(), &width, &height, 0, SOIL_LOAD_RGB);
 
-	for (int y = 0; y < height; y++)
+	for (int y1 = 0; y1 < height; y1++)
 	{
 		for (int x = 0; x < width; x++)
 		{
-			int index = (width * y + x) * SOIL_LOAD_RGB;
-			float r = data[index + 0] / 255.0f;
-			float g = data[index + 1] / 255.0f;
-			float b = data[index + 2] / 255.0f;
+			int r, g, b, c, m, y, k;
+			int index = (width * y1 + x) * SOIL_LOAD_RGB;
 
-			float black = std::max(std::max(r, g), b);
-			percentize(&black);
+			r = data[index + 0];
+			g = data[index + 1];
+			b = data[index + 2];
 
-			if (black < 0.01) 
-			{
-				data[index + 0] = 0;
-				data[index + 1] = 0;
-				data[index + 2] = 0;
-				continue;
-			}
+			rgb_to_cmyk(r, g, b, &c, &m, &y, &k);
+			cmyk_to_rgb(c, m, y, k, &r, &g, &b);
 
-			float n_black = 1.0f - black;
-
-			float cyan = (black - r) / black;
-			float magenta = (black - g) / black;
-			float yellow = (black - b) / black;
-
-			percentize(&cyan);
-			percentize(&magenta);
-			percentize(&yellow);
-
-			float rc = roundf(255.0f * (1 - cyan) * black);
-			float gc = roundf(255.0f * (1 - magenta) * black);
-			float bc = roundf(255.0f * (1 - yellow) * black);
-
-			fix_value_if_need(&rc);
-			fix_value_if_need(&gc);
-			fix_value_if_need(&bc);
-
-			data[index + 0] = (unsigned char) rc;
-			data[index + 1] = (unsigned char) gc;
-			data[index + 2] = (unsigned char) bc;
+			data[index + 0] = (unsigned char) r;
+			data[index + 1] = (unsigned char) g;
+			data[index + 2] = (unsigned char) b;
 		}
 	}
 
